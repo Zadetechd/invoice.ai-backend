@@ -4,7 +4,8 @@ OCR Pipeline
 Handles text extraction from PDF and image files.
 
 For native PDFs: uses pdfplumber to extract embedded text directly.
-For scanned PDFs and images: converts pages to images then runs pytesseract.
+For scanned PDFs: converts pages to images then runs pytesseract if available.
+For image files: returns empty text so the extractor can route to Gemini vision.
 
 The pipeline automatically detects which method is needed based on
 whether meaningful text exists in the PDF layer.
@@ -15,13 +16,9 @@ import os
 from typing import Optional
 
 import pdfplumber
-import pytesseract
-from pdf2image import convert_from_path
-from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-# Minimum character count to consider a PDF as having embedded text
 EMBEDDED_TEXT_THRESHOLD = 50
 
 
@@ -29,7 +26,7 @@ def extract_text_from_pdf(file_path: str) -> tuple[str, bool]:
     """
     Extract text from a PDF file.
 
-    Tries embedded text extraction first.
+    Tries embedded text extraction first via pdfplumber.
     Falls back to OCR if the embedded text is too short or empty.
 
     Returns:
@@ -51,7 +48,10 @@ def extract_text_from_pdf(file_path: str) -> tuple[str, bool]:
             logger.info("Embedded text extracted (%d chars)", len(embedded_text))
             return embedded_text, False
 
-        logger.info("Embedded text too short (%d chars), falling back to OCR", len(embedded_text))
+        logger.info(
+            "Embedded text too short (%d chars), falling back to OCR",
+            len(embedded_text),
+        )
 
     except Exception as e:
         logger.warning("pdfplumber extraction failed: %s", e)
@@ -63,6 +63,9 @@ def extract_text_from_pdf(file_path: str) -> tuple[str, bool]:
 def _ocr_pdf(file_path: str) -> tuple[str, bool]:
     """Convert PDF pages to images and run OCR on each page."""
     try:
+        from pdf2image import convert_from_path
+        import pytesseract
+
         logger.info("Running OCR on PDF pages")
         images = convert_from_path(file_path, dpi=300)
         page_texts = []
@@ -82,19 +85,30 @@ def _ocr_pdf(file_path: str) -> tuple[str, bool]:
 
 def extract_text_from_image(file_path: str) -> tuple[str, bool]:
     """
-    Run OCR on a single image file (PNG, JPG, JPEG).
+    Attempt tesseract OCR on an image file.
+
+    On hosted environments where tesseract is not installed this will
+    return empty text. The extractor detects this and routes the file
+    to Gemini vision extraction instead, which requires no local OCR.
 
     Returns:
         tuple of (extracted_text, ocr_was_used)
     """
-    logger.info("Running OCR on image: %s", os.path.basename(file_path))
+    logger.info("Attempting OCR on image: %s", os.path.basename(file_path))
     try:
+        import pytesseract
+        from PIL import Image
+
         image = Image.open(file_path)
         text = pytesseract.image_to_string(image)
         logger.info("Image OCR produced %d chars", len(text))
         return text.strip(), True
     except Exception as e:
-        logger.error("Image OCR failed: %s", e)
+        logger.warning(
+            "Tesseract OCR unavailable (%s). "
+            "Extractor will use Gemini vision instead.",
+            e,
+        )
         return "", True
 
 
@@ -102,6 +116,8 @@ def extract_text(file_path: str) -> tuple[str, bool]:
     """
     Main entry point for text extraction.
     Routes to the correct method based on file extension.
+
+    For images, empty text signals the extractor to use Gemini vision.
 
     Returns:
         tuple of (extracted_text, ocr_was_used)

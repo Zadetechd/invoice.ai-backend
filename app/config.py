@@ -44,11 +44,9 @@ class Settings:
 
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 
-    # Image OCR via tesseract is not available on the hosted server.
-    # The live demo accepts PDF files only.
-    # To process scanned images run the project locally with
-    # tesseract installed via the instructions in the README.
-    ALLOWED_EXTENSIONS: set = {".pdf"}
+    # PDF uses pdfplumber. Images use Gemini vision directly so
+    # tesseract is not required on the server.
+    ALLOWED_EXTENSIONS: set = {".pdf", ".png", ".jpg", ".jpeg"}
 
     def validate(self):
         """Check required keys exist for the configured provider."""
