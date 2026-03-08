@@ -231,6 +231,14 @@ Fields like `total_amount`, `vendor_name`, and `invoice_date` carry higher weigh
 
 ---
 
+
+
+
+
+The hosted demo accepts PDF files only. 
+To process scanned images run the project locally 
+with Tesseract installed via the instructions above.
+
 ## Technology Stack
 
 | Layer | Technology |
