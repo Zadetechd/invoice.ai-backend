@@ -1,0 +1,2 @@
+file_name,status,confidence_score,ocr_used,vendor_name,invoice_number,invoice_date,currency,total_amount
+invoice_techstore.pdf,success,1.0,False,TechStore Ghana Ltd.,INV-2024-0091,2024-11-15,USD,3328.6
