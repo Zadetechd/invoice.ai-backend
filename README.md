@@ -1,36 +1,47 @@
 # AI Invoice Extractor
 
-A document intelligence pipeline that extracts structured data from invoice files using OCR and large language models.
+A document intelligence pipeline that extracts structured data from invoice files using OCR and large language models. Built by Godwin.
 
-Upload a PDF or image invoice and receive clean JSON with vendor name, invoice number, date, line items, totals, and a confidence score back in seconds.
+Live Demo: https://invoiceai-blue.vercel.app
+Backend API: https://invoice-ai-backend-1.onrender.com/docs
+Frontend Repo: https://github.com/Zadetechd/invoice.ai
+Backend Repo: https://github.com/Zadetechd/invoice.ai-backend
 
+> The backend is hosted on Render's free tier and may take up to 30 seconds to respond on the first request after a period of inactivity. This is a known free tier behaviour and not a bug.
 
+---
+
+## What It Does
+
+Upload any PDF or image invoice. The pipeline extracts vendor name, invoice number, date, line items, totals, and confidence score then returns clean structured JSON in seconds. Both single and batch uploads are supported with CSV and JSON export.
+
+---
 
 ## Architecture
 
-
+```
 Invoice Upload
      ↓
 File Validation
      ↓
-OCR Processing       ← pdfplumber (native PDF) or pytesseract (scanned / image)
+OCR Processing       pdfplumber for native PDFs, pytesseract for scanned files and images
      ↓
-Text Preprocessing   ← whitespace normalisation, deduplication, truncation
+Text Preprocessing   whitespace normalisation, deduplication, truncation to 2000 chars
      ↓
-LLM Extraction       ← Gemini 1.5 Flash (or OpenAI GPT via provider switch)
+LLM Extraction       Google Gemini 1.5 Flash, swappable to OpenAI via one env variable
      ↓
-Schema Validation    ← Pydantic
+Schema Validation    Pydantic v2
      ↓
-Confidence Scoring   ← field completeness weighting
+Confidence Scoring   field completeness weighting, 0.0 to 1.0
      ↓
 Structured JSON Output
+```
 
-
-
+---
 
 ## Project Structure
 
-
+```
 ai-invoice-extractor/
 ├── app/
 │   ├── main.py                  FastAPI app entry point
@@ -56,98 +67,89 @@ ai-invoice-extractor/
 ├── sample_invoices/             Two ready-to-use test invoices
 ├── exports/                     JSON and CSV exports land here
 ├── requirements.txt
+├── runtime.txt
 ├── .env.example
 └── README.md
-
+```
 
 ---
 
 ## Quick Start
 
-### 1. Clone and install dependencies
+**1. Clone and install dependencies**
 
 ```bash
-git clone <your-repo-url>
-cd ai-invoice-extractor
+git clone https://github.com/Zadetechd/invoice.ai-backend
+cd invoice.ai-backend
 pip install -r requirements.txt
 ```
 
-> **System dependency for OCR:** If you plan to process scanned invoices or images,
-> install Tesseract on your machine first.
->
-> Ubuntu / Debian:
-> ```bash
-> sudo apt install tesseract-ocr poppler-utils
-> ```
->
-> macOS:
-> ```bash
-> brew install tesseract poppler
-> ```
->
-> Windows: Download the Tesseract installer from https://github.com/UB-Mannheim/tesseract/wiki
+Install Tesseract for OCR support:
 
-### 2. Set up your API key
+Ubuntu or Debian:
+```bash
+sudo apt install tesseract-ocr poppler-utils
+```
+
+macOS:
+```bash
+brew install tesseract poppler
+```
+
+Windows: download the installer from https://github.com/UB-Mannheim/tesseract/wiki
+
+**2. Set up your API key**
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and add your Gemini API key:
+Open `.env` and add your Gemini API key. Get a free key at https://aistudio.google.com/app/apikey with no credit card required.
 
 ```
 GEMINI_API_KEY=your_key_here
 ```
 
-Get a free Gemini key at https://aistudio.google.com/app/apikey (no credit card required).
-
-### 3. Start the server
+**3. Start the server**
 
 ```bash
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
 ```
 
-The API is now running at http://127.0.0.1:8000
-
-Interactive API docs are at http://127.0.0.1:8000/docs
+The API runs at http://127.0.0.1:8000 and the interactive docs are at http://127.0.0.1:8000/docs
 
 ---
 
 ## Testing With the Sample Invoices
 
-Two real-looking invoices are included in the `sample_invoices/` folder so you can test without needing your own files.
+Two invoices are included in the `sample_invoices/` folder so you can test without preparing your own files.
 
-### Using the interactive docs (easiest)
+**Using the live demo**
 
-1. Open http://127.0.0.1:8000/docs in your browser
-2. Click **POST /upload**
-3. Click **Try it out**
-4. Upload `sample_invoices/invoice_techstore.pdf`
-5. Click **Execute**
+Go to https://invoiceai-blue.vercel.app, upload either sample invoice, and the full extraction result appears on screen with a confidence score and line items table.
 
-You will see a full JSON response with all extracted fields and a confidence score.
+**Using the interactive API docs**
 
-### Using curl
+1. Open https://invoice-ai-backend-1.onrender.com/docs
+2. Click POST /upload then Try it out
+3. Upload `sample_invoices/invoice_techstore.pdf`
+4. Click Execute
+
+**Using curl**
 
 ```bash
-# Single invoice
-curl -X POST http://127.0.0.1:8000/upload \
+curl -X POST https://invoice-ai-backend-1.onrender.com/upload \
   -F "file=@sample_invoices/invoice_techstore.pdf"
-
-# Batch upload
-curl -X POST http://127.0.0.1:8000/upload-batch \
-  -F "files=@sample_invoices/invoice_techstore.pdf" \
-  -F "files=@sample_invoices/invoice_cloudservices.pdf"
 ```
 
-### Using Python
+**Using Python**
 
 ```python
 import requests
 
 with open("sample_invoices/invoice_techstore.pdf", "rb") as f:
     response = requests.post(
-        "http://127.0.0.1:8000/upload",
+        "https://invoice-ai-backend-1.onrender.com/upload",
         files={"file": f}
     )
 
@@ -161,10 +163,10 @@ print(response.json())
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | /upload | Extract data from one invoice |
-| POST | /upload-batch | Upload multiple invoices (returns job_id) |
+| POST | /upload-batch | Upload multiple invoices, returns job_id |
 | GET | /status/{job_id} | Poll batch job status and get results |
-| GET | /export/json | Download last batch result as JSON |
-| GET | /export/csv | Download last batch result as CSV |
+| GET | /export/json | Download last result as JSON |
+| GET | /export/csv | Download last result as CSV |
 | GET | /health | Check API and LLM provider status |
 
 ---
@@ -201,9 +203,9 @@ print(response.json())
 
 ## Switching LLM Providers
 
-The system uses an abstraction layer so you can swap providers with one environment variable change.
+The system uses an abstraction layer so swapping providers requires changing one environment variable.
 
-To use OpenAI instead of Gemini:
+To use OpenAI instead of Gemini set these in your `.env`:
 
 ```
 LLM_PROVIDER=openai
@@ -211,21 +213,21 @@ OPENAI_API_KEY=your_key_here
 OPENAI_MODEL=gpt-4o-mini
 ```
 
-To add a new provider (e.g. Anthropic Claude, Mistral, or a local vLLM endpoint), create a new class in `app/llm/` that extends `BaseLLMProvider` and implement the `extract` and `health_check` methods, then register it in `app/llm/factory.py`.
+To add a new provider such as Anthropic Claude, Mistral, or a local vLLM endpoint, create a new class in `app/llm/` that extends `BaseLLMProvider`, implement the `extract` and `health_check` methods, then register it in `app/llm/factory.py`.
 
 ---
 
 ## Confidence Scoring
 
-Each extraction result includes a `confidence_score` between 0.0 and 1.0.
+Each result includes a `confidence_score` between 0.0 and 1.0 based on field completeness weighting.
 
-| Score Range | Status | Meaning |
-|-------------|--------|---------|
+| Score | Status | Meaning |
+|-------|--------|---------|
 | 0.75 to 1.0 | success | All core fields extracted reliably |
 | 0.40 to 0.74 | partial | Some fields missing or uncertain |
 | 0.00 to 0.39 | failed | Extraction did not produce usable data |
 
-The score is calculated using field completeness weighting. Fields like `total_amount`, `vendor_name`, and `invoice_date` carry higher weight than supplementary fields like `payment_terms` or `notes`.
+Fields like `total_amount`, `vendor_name`, and `invoice_date` carry higher weight than supplementary fields like `payment_terms` or `notes`.
 
 ---
 
@@ -235,10 +237,15 @@ The score is calculated using field completeness weighting. Fields like `total_a
 |-------|-----------|
 | Language | Python 3.11 |
 | API Framework | FastAPI |
-| LLM (default) | Google Gemini 1.5 Flash |
-| LLM (alternative) | OpenAI GPT-4o-mini |
+| LLM default | Google Gemini 1.5 Flash |
+| LLM alternative | OpenAI GPT-4o-mini |
 | OCR | pytesseract and pdf2image |
 | PDF parsing | pdfplumber |
 | Validation | Pydantic v2 |
 | Export | Pandas |
 | Server | Uvicorn |
+| Frontend | React TypeScript with Vite |
+
+---
+
+Built by Godwin as a document intelligence portfolio project.
